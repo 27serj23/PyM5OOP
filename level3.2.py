@@ -1,0 +1,107 @@
+# 3.2
+# Теперь у воинов есть 2 метода. Защищаться и атаковать. Есть очки
+# здоровья, очки брони и очки выносливости.
+# На каждом шаге каждый воин атакует или защищается. Когда
+# воин атакует, он теряет 10 очков выносливости. Когда воин
+# защищается, а его атакуют, он теряет очки здоровья(random(0, 20))
+# и очки брони(random(0, 10)).Когда оба воина атакуют, они оба
+# теряют очки здоровья(random(10, 30)) и выносливости. Если оба
+# воина защищаются, они не теряют очков. Когда очки брони кончаются, защищающийся воин
+# теряет только очки здоровья(random(10, 30)). Когда очки выносливости
+# закончатся, воин наносит меньше урона random(0, 10).
+# На каждом ходе решение защищаться или атаковать принимается случайным образом.
+# Проигрывает тот воин, у которого первым осталось 10 единиц здоровья.
+# Тогда(как в Колизее) у пользователя спрашивают убить его, или (нет.polliceverso)
+# Пример: health = 100
+# у обоих
+# health_1 - здоровье первого
+# health_2 - здоровье второго
+# endurance = 100 - выносливость
+# у обоих
+# end_1- выносливость первого
+# end_2 - выносливость второго
+# armor = 100 - броня
+# у обоих armor_1-броня у первого
+# armor_2-броня у второго
+# 1: атака
+# 2: атака
+# health_1 -= random(10, 30)
+# health_2 -= random(10, 30)
+# end_1 -= 10
+# end_2 -= 10
+# 1: атака
+# 2: защита
+# end_1 -= 10
+# health_2 -= random(0, 20)
+# armor_2 -= random(0, 10)
+import random
+
+class Warrior:
+    def __init__(self, name):
+        self.name = name
+        self.health = 100
+        self.endurance = 100
+        self.armor = 100
+
+    def take_damage(self, amount):
+        if self.armor > 0:
+            armor_damage = min(amount // 2, self.armor)
+            health_damage = max(0, amount - armor_damage)
+            self.armor -= armor_damage
+            self.health -= health_damage
+        else:
+            self.health -= amount
+
+    def attack(self, opponent):
+        damage = random.randint(10, 30)
+        opponent.take_damage(damage)
+        self.endurance -= 10
+        print(f"⚔ {self.name} атаковал {opponent.name} | Урон: {damage}")
+        print(f"   ❤ {opponent.name}: здоровье {opponent.health}, броня {opponent.armor}")
+
+    def defend(self, opponent):
+        incoming_damage = random.randint(0, 20)
+        armor_damage = random.randint(0, 10)
+        self.take_damage(incoming_damage)
+        self.armor -= armor_damage
+        print(f"🛡 {self.name} защитился от {opponent.name}")
+        print(f"   Потеряно: здоровье {incoming_damage}, броня {armor_damage}")
+
+    def act(self, opponent):
+        action = random.choice(['attack', 'defend'])
+        if action == 'attack':
+            self.attack(opponent)
+        elif action == 'defend':
+            self.defend(opponent)
+
+# Создаем воинов
+warriors = [Warrior("Спартанец"), Warrior("Варвар")]
+
+print("⚔ БОЙ НАЧИНАЕТСЯ! ⚔")
+print("=" * 30)
+
+round_count = 0
+while all(warrior.health > 0 for warrior in warriors):
+    round_count += 1
+    print(f"\n--- Раунд {round_count} ---")
+
+    # Выбираем случайного атакующего
+    attacker = random.choice(warriors)
+    defender = next(warrior for warrior in warriors if warrior != attacker)
+
+    # Выполняем действие
+    attacker.act(defender)
+
+    # Проверяем, не закончилась ли игра
+    if defender.health <= 0:
+        break
+
+# Определяем победителя и проигравшего
+winner = next((w for w in warriors if w.health > 0), None)
+loser = next((w for w in warriors if w.health <= 0), None)
+
+print("\n" + "=" * 30)
+print(f"🏆 ПОБЕДИТЕЛЬ: {winner.name}")
+print(f"💀 ПРОИГРАВШИЙ: {loser.name}")
+print(f"❤ Оставшееся здоровье победителя: {winner.health}")
+

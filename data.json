@@ -1,0 +1,7 @@
+{
+    "author": "Игорь Иванов",
+    "content": "Это мой первый пост!",
+    "date_posted": "2023-10-01T12:00:00Z",
+    "save": "<bound method Model.save of <__main__.Post object at 0x00000250DDBB79B0>>",
+    "title": "Мой первый пост"
+}
