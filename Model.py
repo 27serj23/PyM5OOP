@@ -52,42 +52,58 @@
 # In[5]: list(filter (lambda x : not x.startswith('_'), dir(C1 )))
 # Out[5]: ['author', 'text', 'title']
 import json
+import os
 
 
 class Model:
-    def save(self, filename='data.json'):
-        # Собираем все атрибуты объекта (кроме тех, что начинаются с "_")
+    def save(self, filename='data.json'): # метод для сохранения объектов в файл
+        try:
+            # Проверяем, существует ли файл и не пустой ли он
+            if os.path.exists(filename) and os.path.getsize(filename) > 0:
+                with open(filename, 'r', encoding='utf-8') as file:
+                    existing_data = json.load(file)
+            else:
+                existing_data = []
+        except (FileNotFoundError, json.JSONDecodeError):
+            # Если файл отсутствует или его содержание не является допустимым JSON
+            existing_data = []
+
+        # Формируем словарь со свойствами текущего объекта (только атрибуты экземпляра)
         data = {}
+        for attr in dir(self): # перебираем все атрибуты объекта
 
-        # Используя dir(self), фильтруем атрибуты, отбрасывая системные
-        attributes = list(filter(lambda attr: not attr.startswith('_'), dir(self)))
+            if attr.startswith('_'):# Пропускаем приватные атрибуты и методы
+                continue
+            value = getattr(self, attr)# получаем значение атрибута
+            # Пропускаем callable объекты (методы)
+            if not callable(value):
+                data[attr] = value
 
-        # Сохраняем каждое найденное свойство
-        for attr in attributes:
-            value = getattr(self, attr)
-            data[attr] = str(value)  # Приведение к строке
+        existing_data.append(data)# Добавляем новую запись в конец списка
 
-        # Записываем данные в JSON-файл
-        with open(filename, 'w', encoding='utf-8') as file:
-            json.dump(data, file, ensure_ascii=False, indent=4)
+        with open(filename, 'w', encoding='utf-8') as file:  # Перезаписываем файл данными
+            json.dump(existing_data, file, ensure_ascii=False, indent=4)# сохраняем данные в формате json
 
-        print(f"Сохранен объект в файл {filename}: {data}")
+        print(f"Сохранён объект в файл {filename}. Всего записей: {len(existing_data)}")
+
 
 class Post(Model):
-    def __init__(self, title, content, date_posted, author):
-        self.title = title
+    def __init__(self, title, content, date_posted, author): # конструктор, который создает объект с параметрами
+        self.title = title # каждый параметр становиться атрибутом объекта
         self.content = content
         self.date_posted = date_posted
         self.author = author
 
-    def _str_(self):
-        return self.title
+    def __str__(self):
+        return f"{self.title}"
 
-post = Post(
-    title="Мой первый пост",
-    content="Это мой первый пост!",
-    date_posted="2023-10-01T12:00:00Z",
-    author="Игорь Иванов"
-)
-# Вызываем метод сохранения
-post.save()
+
+# Первый пост
+first_post = Post(title="Мой первый пост", content="Это мой первый пост!", date_posted="2023-10-01T12:00:00Z",
+                  author="Игорь Иванов")
+first_post.save()
+
+# Второй пост
+second_post = Post(title="Второй пост", content="Ещё один замечательный день.", date_posted="2023-10-02T16:30:00Z",
+                   author="Иван Петров")
+second_post.save()
