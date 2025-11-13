@@ -10,27 +10,55 @@
 # ресурс здоровья, программа завершается сообщением о том, кто одержал победу.
 import random
 
-class Warrior:
-    def __init__(self, name):
-        self.name = name
-        self.health = 100
 
-    def attack(self, opponent):
-        damage = 20
-        opponent.health -= damage
-        print(f"{self.name} нанес удар {opponent.name}. Осталось здоровья: {opponent.health}")
+class Warrior:
+    def __init__(self, name, health=100, damage=20):
+        self.name = name
+        self.health = health
+        self.damage = damage
+
+    def take_damage(self, damage):
+        self.health -= damage
+        if self.health < 0:  # Не даем здоровью уйти в минус
+            self.health = 0
+        print(f"{self.name} получил удар. Осталось здоровья: {self.health}")
+
 
 warriors = [Warrior("Воин Андрей"), Warrior("Воин Борис")]
 
-while all(warrior.health > 0 for warrior in warriors):
-    attacker = random.choice(warriors)
-    defender = next(warrior for warrior in warriors if warrior != attacker)
-    attacker.attack(defender)
+fight_is_over = False
+round_count = 0  # Счетчик раундов
 
-winner = next((w for w in warriors if w.health > 0))
-loser = next((w for w in warriors if w.health <= 0))
+while not fight_is_over:
+    round_count += 1
+    print(f"\n--- Раунд {round_count} ---")
 
-print(f"\nПобедитель: {winner.name}\nПроигравший: {loser.name}")
+    attacker, defender = random.sample(warriors, 2)
+    print(f"{attacker.name} атакует {defender.name}!")  # Показываем кто кого атакует
+
+    defender.take_damage(attacker.damage)
+
+    # Проверяем, закончился ли бой
+    if any(warrior.health <= 0 for warrior in warriors):
+        fight_is_over = True
+
+# Определяем победителя и проигравшего
+winner = None
+loser = None
+
+for warrior in warriors:
+    if warrior.health > 0:
+        winner = warrior
+    else:
+        loser = warrior
+
+# Проверяем, что победитель определен (на случай ничьи)
+if winner and loser:
+    print(f"\nПобедитель: {winner.name}")
+    print(f"Проигравший: {loser.name}")
+else:
+    print("\nБой закончился вничью!")
+
 
 
 
