@@ -35,143 +35,191 @@
 # health_2 -= random(0, 20)
 # armor_2 -= random(0, 10)
 import random
-
+from typing import List, Tuple
 
 class Warrior:
-    def __init__(self, name):
+    def __init__(self, name: str, health: int = 100, endurance: int = 100, armor: int = 100):# инициализируем имя итд
         self.name = name
-        self.health = 100
-        self.endurance = 100
-        self.armor = 100
+        self.health = health
+        self.endurance = endurance
+        self.armor = armor
+        self._is_defending = False
 
-    def take_damage(self, damage):
-        """Получает урон"""
-        self.health -= damage
-        if self.health < 0:
-            self.health = 0
-        print(f"{self.name} получил удар. Осталось здоровья: {self.health}")
+    def is_alive(self) -> bool: # возвращаем True, пока здоровье больше 10
+        return self.health > 10
 
-    def lose_endurance(self, amount):
-        """Тратит выносливость"""
-        self.endurance -= amount
-        if self.endurance < 0:
-            self.endurance = 0
-        print(f"{self.name} потерял выносливость. Осталось выносливости: {self.endurance}")
+    def attack(self) -> Tuple[bool, int, str]: # осуществляем атаку, генерируя случайный урон и снижая собственную выносливость
+        if self.endurance < 10:
+            damage = random.randint(0, 10)
+            return True, damage, f"{self.name} атакует с пониженным уроном из-за усталости (урон: {damage})"
+        self.endurance -= 10 # Защита
+        damage = self.get_attack_damage()
+        return True, damage, f"{self.name} атаковал (урон: {damage})"
 
-    def lose_armor(self, amount):
-        """Потеря брони"""
-        self.armor -= amount
-        if self.armor < 0:
-            self.armor = 0
-        print(f"{self.name} потерял броню. Осталось брони: {self.armor}")
+    def defend(self) -> str: # активирует режим защиты, предотвращая максимальный ущерб
+        self._is_defending = True
+        return f"{self.name} переходит в режим защиты"
 
-    def restore_stats(self):
-        """Частичное восстановление характеристик каждый раунд"""
-        self.endurance = min(100, self.endurance + 5)
+    def take_damage(self, damage: int, attacker_action: str) -> str:# вычисляет фактический наносимый урон
+        health_damage = 0
+        armor_damage = 0
+        if attacker_action == 'attack':
+            if self._is_defending:
+                if self.armor > 0:
+                    health_damage = random.randint(0, 20)
+                    armor_damage = random.randint(0, 10)
+                    self.armor -= armor_damage
+                    if self.armor < 0:
+                        self.armor = 0
+                else:
+                    health_damage = random.randint(10, 30)
+            else:
+                health_damage = random.randint(10, 30)
+        else:
+            health_damage = damage
 
-    def make_decision(self):
-        """Решает атаковать или защищаться"""
-        # Проверяем, может ли воин действовать
-        if self.health <= 0:
-            return "defend"  # Мертвые не атакуют
+        self.health -= health_damage
+        if armor_damage > 0:
+            return f"получил {health_damage} урона по здоровью (броня поглотила {armor_damage})"
+        else:
+            return f"получил {health_damage} урона по здоровью"
+# вспомогательные методы
+    def get_attack_damage(self) -> int: # расчет урона в зависимости от выносливости
+        if self.endurance <= 0:
+            return random.randint(0, 10)
+        return random.randint(10, 30)
 
-        decision = random.choice(["attack", "defend"])
-        print(f"{self.name} решил {'атаковать' if decision == 'attack' else 'защититься'}.")
-        return decision
+    def reset_defense(self):# сброс защиты
+        self._is_defending = False
 
+    def is_defending(self) -> bool:# проверка состояния защиты
+        return self._is_defending
+# строковое представление
+    def __str__(self) -> str:# статус воина с форматированием
+        status = ""
+        if self.health <= 10:
+            status = " [НА ПОРОГЕ СОБСТВЕННОЙ СМЕРТИ]"
+        return f"{self.name}{status}:\n\t• Здоровье: {self.health}\n\t• Броня: {self.armor}\n\t• Выносливость: {self.endurance}"
 
-class BattleManager:
-    def __init__(self, warriors):
+class Battle:
+    def __init__(self, warriors: List[Warrior]):
+        if len(warriors) < 2:
+            raise ValueError("Нужно минимум 2 воина для боя")
         self.warriors = warriors
 
-    def simulate_round(self):
-        actions = {}
-        for warrior in self.warriors:
-            actions[warrior] = warrior.make_decision()
+    def _select_actions(self) -> List[Tuple[Warrior, str]]:
+        return [(warrior, random.choice(['attack', 'defend'])) for warrior in self.warriors]
 
-        # Восстанавливаем немного выносливости каждому воину
-        for warrior in self.warriors:
-            warrior.restore_stats()
+    def _resolve_interaction(self, attacker: Warrior, defender: Warrior,
+                             attacker_action: str, defender_action: str) -> str:
+        attack_success, damage, attack_msg = attacker.attack()
 
-        # Анализируем действия
-        attacker = None
-        defender = None
-        for warrior, action in actions.items():
-            if action == "attack":
-                attacker = warrior
-            else:
-                defender = warrior
+        if not attack_success and 'не может атаковать' in attack_msg:
+            return attack_msg
 
-        # Разбор ситуации
-        if attacker is not None and defender is not None:
-            # Атакующий тратит выносливость
-            attacker.lose_endurance(10)
+        def_msg = defender.take_damage(damage, attacker_action)
 
-            # Защитник получает урон и потерю брони
-            health_damage = random.randint(0, 20)
-            armor_damage = random.randint(0, 10)
-            defender.take_damage(health_damage)
-            defender.lose_armor(armor_damage)
-
-        elif attacker is not None and defender is None:
-            # Оба атакуют
-            damage = random.randint(10, 30)
-            for warrior in self.warriors:
-                warrior.take_damage(damage)
-                warrior.lose_endurance(10)
-
-        # Завершаем раунд
-        print("-" * 30)
-
-    def check_game_over(self):
-        losers = []
-        for warrior in self.warriors:
-            if warrior.health <= 0:  # Изменено с <=10 на <=0
-                losers.append(warrior)
-        return losers
-
-    def run_battle(self):
-        round_number = 1
-        while True:
-            print(f"\nРаунд №{round_number}")
-
-            # Показываем текущее состояние бойцов
-            for warrior in self.warriors:
-                print(
-                    f"{warrior.name}: Здоровье={warrior.health}, Выносливость={warrior.endurance}, Броня={warrior.armor}")
-
-            self.simulate_round()
-            losers = self.check_game_over()
-            if losers:
-                break
-            round_number += 1
-
-        # Кто проиграл?
-        loser = losers[0]
-        print(f"\nВоин {loser.name} достиг критического уровня здоровья!\n")
-
-        # Просим зрителя принять решение
-        print("Зритель решает судьбу:")
-        print("1 - Казнить проигравшего")
-        print("2 - Помиловать и отпустить")
-        choice = input("Ваш выбор (1 или 2): ")
-
-        # Добавляем проверку ввода
-        while choice not in ['1', '2']:
-            print("Пожалуйста, введите 1 или 2")
-            choice = input("Ваш выбор (1 или 2): ")
-
-        if choice == "1":
-            print(f"Толпа кричит: \"Казнь!\". Воин {loser.name} убит.")
+        if defender_action == 'defend':
+            return f"{attack_msg}: {def_msg}. {defender.name} защищался"
         else:
-            print(f"Милосердие возобладало. Воин {loser.name} спасён.")
+            return f"{attack_msg}: {def_msg}"
 
+    def _execute_turn(self, actions: List[Tuple[Warrior, str]]) -> List[str]:
+        messages = []
 
-# Запускаем игру
-warriors = [Warrior("Спартак"), Warrior("Максимус")]
-manager = BattleManager(warriors)
-manager.run_battle()
+        for warrior, action in actions:
+            if action == 'defend':
+                msg = warrior.defend()
+                messages.append(msg)
 
+        alive_warriors = self._get_alive_warriors()
+        warrior_actions = {w: a for w, a in actions}
+
+        for attacker, attacker_action in actions:
+            if attacker_action != 'attack' or not attacker.is_alive():
+                continue
+
+            possible_targets = [w for w in alive_warriors if w != attacker and w.is_alive()]
+
+            if not possible_targets:
+                messages.append(f"{attacker.name} не нашел цели для атаки")
+                continue
+
+            defender = random.choice(possible_targets)
+            defender_action = warrior_actions[defender]
+
+            msg = self._resolve_interaction(attacker, defender, attacker_action, defender_action)
+            messages.append(msg)
+
+        return messages
+
+    def _cleanup_defense(self):
+        for warrior in self.warriors:
+            warrior.reset_defense()
+
+    def _get_alive_warriors(self) -> List[Warrior]:
+        return [w for w in self.warriors if w.is_alive()]
+
+    def run(self):
+        turn = 1
+
+        print("🚀 ⚔ 🚀 \nНачало боя!")
+        for warrior in self.warriors:
+            print(f"➕ {warrior}")
+
+        while len(self._get_alive_warriors()) > 1:
+            print(f"\n\n------ ХОД #{turn} ------")
+
+            actions = self._select_actions()
+            print("✉ ДЕЙСТВИЯ:\n")
+            for warrior, action in actions:
+                print(f"— {warrior.name}: {action.capitalize()}")
+
+            messages = self._execute_turn(actions)
+            print("\n🔥 РЕЗУЛЬТАТЫ ЭТОГО ХОДА:\n")
+            for msg in messages:
+                print(f"— {msg}")
+
+            print("\n📋 ТЕКУЩЕЕ СОСТОЯНИЕ ВОИНОВ:\n")
+            for warrior in self.warriors:
+                if warrior.is_alive():
+                    print(f"☘ {warrior}")
+                else:
+                    print(f"✨ {warrior.name} ранен")
+
+            self._cleanup_defense()
+            turn += 1
+
+        alive = self._get_alive_warriors()
+        dead = [w for w in self.warriors if not w.is_alive()]
+
+        if alive and dead:
+            winner = alive[0]
+            loser = dead[0]
+            print(f"\n🥊 {loser.name.upper()} проиграл (его здоровье упало ниже допустимой нормы)! ⬇")
+
+            # Пользовательский выбор убийства
+            while True:
+                choice = input("Хотите казнить проигравшего? (1 — Да / 2 — Нет): ").strip()
+                if choice == "1":
+                    print(f"🔫 {loser.name.upper()} был казнён по воле толпы!")
+                    break
+                elif choice == "2":
+                    print(f"🌟 {loser.name.upper()} помилован зрителями и продолжает жить!")
+                    break
+                else:
+                    print("Введите 1 или 2.")
+
+            print(f"🥈 ПОБЕДИЛ: {winner.name.upper()}!")
+        else:
+            print("🌵 Бой завершён вничью!")
+
+if __name__ == "__main__":
+    warrior1 = Warrior("Ахиллес", health=120, armor=80)
+    warrior2 = Warrior("Гектор", endurance=120)
+
+    battle = Battle([warrior1, warrior2])
+    battle.run()
 
 
 
