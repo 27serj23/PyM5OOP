@@ -35,191 +35,553 @@
 # health_2 -= random(0, 20)
 # armor_2 -= random(0, 10)
 import random
-from typing import List, Tuple
+from abc import ABC, abstractmethod
+from enum import Enum
+from typing import Optional, Tuple, List
 
-class Warrior:
-    def __init__(self, name: str, health: int = 100, endurance: int = 100, armor: int = 100):# инициализируем имя итд
+
+class ActionType(Enum):
+    """
+    Перечисление типов действий, доступных воинам в бою.
+
+    Attributes:
+        ATTACK: Атакующее действие
+        DEFEND: Защитное действие
+    """
+    ATTACK = "атака"
+    DEFEND = "защита"
+
+
+class Warrior(ABC):
+    """
+    Абстрактный базовый класс для всех типов воинов.
+
+    Определяет общий интерфейс и базовую функциональность для всех воинов.
+
+    Attributes:
+        name (str): Имя воина
+        max_health (int): Максимальное значение здоровья
+        max_endurance (int): Максимальное значение выносливости
+        max_armor (int): Максимальное значение брони
+        health (int): Текущее значение здоровья
+        endurance (int): Текущее значение выносливости
+        armor (int): Текущее значение брони
+    """
+
+    def __init__(self, name: str, health: int = 100, endurance: int = 100, armor: int = 100):
+        """
+        Инициализирует воина с базовыми параметрами.
+
+        Args:
+            name: Имя воина
+            health: Начальное значение здоровья (по умолчанию 100)
+            endurance: Начальное значение выносливости (по умолчанию 100)
+            armor: Начальное значение брони (по умолчанию 100)
+        """
         self.name = name
+        self.max_health = health
+        self.max_endurance = endurance
+        self.max_armor = armor
         self.health = health
         self.endurance = endurance
         self.armor = armor
-        self._is_defending = False
 
-    def is_alive(self) -> bool: # возвращаем True, пока здоровье больше 10
+    def is_alive(self) -> bool:
+        """
+        Проверяет, жив ли воин.
+
+        Returns:
+            True если здоровье воина больше 10, иначе False
+        """
         return self.health > 10
 
-    def attack(self) -> Tuple[bool, int, str]: # осуществляем атаку, генерируя случайный урон и снижая собственную выносливость
-        if self.endurance < 10:
-            damage = random.randint(0, 10)
-            return True, damage, f"{self.name} атакует с пониженным уроном из-за усталости (урон: {damage})"
-        self.endurance -= 10 # Защита
-        damage = self.get_attack_damage()
-        return True, damage, f"{self.name} атаковал (урон: {damage})"
+    def restore(self) -> None:
+        """Полностью восстанавливает здоровье, выносливость и броню воина."""
+        self.health = self.max_health
+        self.endurance = self.max_endurance
+        self.armor = self.max_armor
 
-    def defend(self) -> str: # активирует режим защиты, предотвращая максимальный ущерб
-        self._is_defending = True
-        return f"{self.name} переходит в режим защиты"
+    @abstractmethod
+    def calculate_attack_power(self) -> int:
+        """
+        Абстрактный метод для расчета силы атаки.
 
-    def take_damage(self, damage: int, attacker_action: str) -> str:# вычисляет фактический наносимый урон
-        health_damage = 0
-        armor_damage = 0
-        if attacker_action == 'attack':
-            if self._is_defending:
-                if self.armor > 0:
-                    health_damage = random.randint(0, 20)
-                    armor_damage = random.randint(0, 10)
-                    self.armor -= armor_damage
-                    if self.armor < 0:
-                        self.armor = 0
-                else:
-                    health_damage = random.randint(10, 30)
-            else:
-                health_damage = random.randint(10, 30)
-        else:
-            health_damage = damage
+        Returns:
+            Целое число, представляющее силу атаки
+        """
+        pass
 
+    @abstractmethod
+    def calculate_defense(self) -> Tuple[int, int]:
+        """
+        Абстрактный метод для расчета защиты.
+
+        Returns:
+            Кортеж из двух целых чисел: (урон по здоровью, урон по броне)
+        """
+        pass
+
+    def take_damage(self, health_damage: int, armor_damage: int = 0) -> None:
+        """
+        Применяет полученный урон к воину.
+
+        Урон сначала поглощается бронёй, остаток переходит на здоровье.
+
+        Args:
+            health_damage: Урон, наносимый здоровью
+            armor_damage: Урон, наносимый броне
+        """
+        # Сначала урон поглощается бронёй
+        if self.armor > 0:
+            self.armor -= armor_damage
+            # Если броня уничтожена, излишек урона переходит на здоровье
+            if self.armor < 0:
+                health_damage += abs(self.armor)
+                self.armor = 0
+
+        # Наносим оставшийся урон по здоровью
         self.health -= health_damage
-        if armor_damage > 0:
-            return f"получил {health_damage} урона по здоровью (броня поглотила {armor_damage})"
-        else:
-            return f"получил {health_damage} урона по здоровью"
-# вспомогательные методы
-    def get_attack_damage(self) -> int: # расчет урона в зависимости от выносливости
+        if self.health < 0:
+            self.health = 0
+
+    def __str__(self) -> str:
+        """
+        Строковое представление воина.
+
+        Returns:
+            Строка с информацией о состоянии воина
+        """
+        return f"{self.name} [З: {self.health}, В: {self.endurance}, Б: {self.armor}]"
+
+
+class BasicWarrior(Warrior):
+    """
+    Класс стандартного воина-мечника.
+
+    Сбалансированный класс со средними показателями во всех характеристиках.
+    """
+
+    def __init__(self, name: str):
+        """
+        Инициализирует мечника.
+
+        Args:
+            name: Имя мечника
+        """
+        super().__init__(name, health=100, endurance=100, armor=100)
+
+    def calculate_attack_power(self) -> int:
+        """
+        Рассчитывает силу атаки мечника.
+
+        Returns:
+            Случайное число от 10 до 30 при нормальной выносливости,
+            от 0 до 10 при истощенной выносливости
+        """
         if self.endurance <= 0:
-            return random.randint(0, 10)
-        return random.randint(10, 30)
+            return random.randint(0, 10)  # Слабая атака при истощении
+        return random.randint(10, 30)  # Нормальная атака
 
-    def reset_defense(self):# сброс защиты
-        self._is_defending = False
+    def calculate_defense(self) -> Tuple[int, int]:
+        """
+        Рассчитывает эффективность защиты.
 
-    def is_defending(self) -> bool:# проверка состояния защиты
-        return self._is_defending
-# строковое представление
-    def __str__(self) -> str:# статус воина с форматированием
-        status = ""
-        if self.health <= 10:
-            status = " [НА ПОРОГЕ СОБСТВЕННОЙ СМЕРТИ]"
-        return f"{self.name}{status}:\n\t• Здоровье: {self.health}\n\t• Броня: {self.armor}\n\t• Выносливость: {self.endurance}"
+        Returns:
+            Кортеж (урон по здоровью, урон по броне)
+        """
+        return random.randint(0, 20), random.randint(0, 10)
+
+
+class Archer(Warrior):
+    """
+    Класс лучника - воина с высокой мобильностью и силой атаки, но низкой защитой.
+
+    Особенности:
+        - Высокий урон
+        - Шанс уклонения от атак
+        - Низкие показатели здоровья и брони
+    """
+
+    def __init__(self, name: str):
+        """
+        Инициализирует лучника.
+
+        Args:
+            name: Имя лучника
+        """
+        super().__init__(name, health=80, endurance=120, armor=60)
+        self.dodge_chance = 0.2  # 20% шанс полного уклонения от атаки
+
+    def calculate_attack_power(self) -> int:
+        """
+        Рассчитывает силу атаки лучника.
+
+        Returns:
+            Случайное число от 15 до 35 при нормальной выносливости,
+            от 5 до 15 при истощенной выносливости
+        """
+        if self.endurance <= 0:
+            return random.randint(5, 15)  # Ослабленная атака
+        return random.randint(15, 35)  # Мощная атака
+
+    def calculate_defense(self) -> Tuple[int, int]:
+        """
+        Рассчитывает защиту лучника с учетом шанса уклонения.
+
+        Returns:
+            Кортеж (урон по здоровью, урон по броне)
+            При успешном уклонении возвращает (0, 0)
+        """
+        if random.random() < self.dodge_chance:
+            return 0, 0  # Полное уклонение от атаки
+        return random.randint(0, 15), random.randint(0, 5)
+
+
+class Tank(Warrior):
+    """
+    Класс танка - воина с высокой защитой и здоровьем, но низкой силой атаки.
+
+    Особенности:
+        - Высокие показатели здоровья и брони
+        - Низкий урон
+        - Эффективная защита от урона
+    """
+
+    def __init__(self, name: str):
+        """
+        Инициализирует танка.
+
+        Args:
+            name: Имя танка
+        """
+        super().__init__(name, health=120, endurance=80, armor=150)
+
+    def calculate_attack_power(self) -> int:
+        """
+        Рассчитывает силу атаки танка.
+
+        Returns:
+            Случайное число от 8 до 25 при нормальной выносливости,
+            от 5 до 15 при истощенной выносливости
+        """
+        if self.endurance <= 0:
+            return random.randint(5, 15)  # Очень слабая атака
+        return random.randint(8, 25)  # Умеренная атака
+
+    def calculate_defense(self) -> Tuple[int, int]:
+        """
+        Рассчитывает защиту танка.
+
+        Танк получает значительно меньше урона благодаря броне.
+
+        Returns:
+            Кортеж (урон по здоровью, урон по броне)
+        """
+        return random.randint(0, 10), random.randint(5, 15)
+
 
 class Battle:
-    def __init__(self, warriors: List[Warrior]):
-        if len(warriors) < 2:
-            raise ValueError("Нужно минимум 2 воина для боя")
-        self.warriors = warriors
+    """
+    Класс, управляющий ходом боя между двумя воинами.
 
-    def _select_actions(self) -> List[Tuple[Warrior, str]]:
-        return [(warrior, random.choice(['attack', 'defend'])) for warrior in self.warriors]
+    Attributes:
+        warriors (List[Warrior]): Список сражающихся воинов
+        turn_count (int): Счетчик выполненных ходов
+    """
 
-    def _resolve_interaction(self, attacker: Warrior, defender: Warrior,
-                             attacker_action: str, defender_action: str) -> str:
-        attack_success, damage, attack_msg = attacker.attack()
+    def __init__(self, warrior1: Warrior, warrior2: Warrior):
+        """
+        Инициализирует бой между двумя воинами.
 
-        if not attack_success and 'не может атаковать' in attack_msg:
-            return attack_msg
+        Args:
+            warrior1: Первый участник боя
+            warrior2: Второй участник боя
+        """
+        self.warriors = [warrior1, warrior2]
+        self.turn_count = 0
 
-        def_msg = defender.take_damage(damage, attacker_action)
+    def run(self) -> Optional[Warrior]:
+        """
+        Запускает и проводит бой до завершения.
 
-        if defender_action == 'defend':
-            return f"{attack_msg}: {def_msg}. {defender.name} защищался"
-        else:
-            return f"{attack_msg}: {def_msg}"
+        Returns:
+            Победивший воин или None в случае ничьи
+        """
+        print("⚔ Начало боя! ⚔")
+        self._print_status()
 
-    def _execute_turn(self, actions: List[Tuple[Warrior, str]]) -> List[str]:
-        messages = []
+        # Основной цикл боя
+        while self._check_continue():
+            self.turn_count += 1
+            self._execute_turn()
+            self._print_status()
 
-        for warrior, action in actions:
-            if action == 'defend':
-                msg = warrior.defend()
-                messages.append(msg)
+        return self._declare_winner()
 
-        alive_warriors = self._get_alive_warriors()
-        warrior_actions = {w: a for w, a in actions}
+    def _check_continue(self) -> bool:
+        """
+        Проверяет, должен ли бой продолжаться.
 
-        for attacker, attacker_action in actions:
-            if attacker_action != 'attack' or not attacker.is_alive():
-                continue
+        Returns:
+            True если оба воина живы, иначе False
+        """
+        return all(warrior.is_alive() for warrior in self.warriors)
 
-            possible_targets = [w for w in alive_warriors if w != attacker and w.is_alive()]
+    def _execute_turn(self) -> None:
+        """
+        Выполняет один ход боя.
 
-            if not possible_targets:
-                messages.append(f"{attacker.name} не нашел цели для атаки")
-                continue
+        Оба воина случайным образом выбирают действие (атака или защита),
+        затем действия разрешаются в соответствии с логикой боя.
+        """
+        print(f"\n🔄 Ход {self.turn_count}")
 
-            defender = random.choice(possible_targets)
-            defender_action = warrior_actions[defender]
+        # Генерируем случайные действия для обоих воинов
+        action1_type = random.choice(list(ActionType))
+        action2_type = random.choice(list(ActionType))
 
-            msg = self._resolve_interaction(attacker, defender, attacker_action, defender_action)
-            messages.append(msg)
+        # Выводим информацию о действиях воинов
+        action1_str = "атакует" if action1_type == ActionType.ATTACK else "защищается"
+        action2_str = "атакует" if action2_type == ActionType.ATTACK else "защищается"
+        print(f"{self.warriors[0].name} {action1_str}")
+        print(f"{self.warriors[1].name} {action2_str}")
 
-        return messages
+        # Обрабатываем действия
+        self._resolve_actions(action1_type, action2_type)
 
-    def _cleanup_defense(self):
-        for warrior in self.warriors:
-            warrior.reset_defense()
+    def _resolve_actions(self, action1_type: ActionType, action2_type: ActionType) -> None:
+        """
+        Обрабатывает и выполняет действия воинов.
 
-    def _get_alive_warriors(self) -> List[Warrior]:
-        return [w for w in self.warriors if w.is_alive()]
+        Args:
+            action1_type: Действие первого воина
+            action2_type: Действие второго воина
+        """
+        w1, w2 = self.warriors
 
-    def run(self):
-        turn = 1
+        # Сценарий 1: Оба воина атакуют
+        if action1_type == ActionType.ATTACK and action2_type == ActionType.ATTACK:
+            # Первый воин атакует второго
+            if w1.endurance >= 10:
+                w1.endurance -= 10
+                damage1 = w1.calculate_attack_power()
+                w2.take_damage(damage1)
+                print(f"⚡ {w1.name} атакует {w2.name} и наносит {damage1} урона")
+            else:
+                print(f"💤 {w1.name} слишком устал для атаки")
 
-        print("🚀 ⚔ 🚀 \nНачало боя!")
-        for warrior in self.warriors:
-            print(f"➕ {warrior}")
+            # Второй воин атакует первого
+            if w2.endurance >= 10:
+                w2.endurance -= 10
+                damage2 = w2.calculate_attack_power()
+                w1.take_damage(damage2)
+                print(f"⚡ {w2.name} атакует {w1.name} и наносит {damage2} урона")
+            else:
+                print(f"💤 {w2.name} слишком устал для атаки")
 
-        while len(self._get_alive_warriors()) > 1:
-            print(f"\n\n------ ХОД #{turn} ------")
+        # Сценарий 2: Первый атакует, второй защищается
+        elif action1_type == ActionType.ATTACK and action2_type == ActionType.DEFEND:
+            if w1.endurance >= 10:
+                w1.endurance -= 10
+                health_damage, armor_damage = w2.calculate_defense()
 
-            actions = self._select_actions()
-            print("✉ ДЕЙСТВИЯ:\n")
-            for warrior, action in actions:
-                print(f"— {warrior.name}: {action.capitalize()}")
-
-            messages = self._execute_turn(actions)
-            print("\n🔥 РЕЗУЛЬТАТЫ ЭТОГО ХОДА:\n")
-            for msg in messages:
-                print(f"— {msg}")
-
-            print("\n📋 ТЕКУЩЕЕ СОСТОЯНИЕ ВОИНОВ:\n")
-            for warrior in self.warriors:
-                if warrior.is_alive():
-                    print(f"☘ {warrior}")
+                if health_damage == 0 and armor_damage == 0:
+                    print(f"🎯 {w2.name} полностью уклоняется от атаки {w1.name}!")
                 else:
-                    print(f"✨ {warrior.name} ранен")
+                    w2.take_damage(health_damage, armor_damage)
+                    print(
+                        f"🛡 {w1.name} атакует, {w2.name} защищается: {health_damage} по здоровью, {armor_damage} по броне")
+            else:
+                print(f"💤 {w1.name} слишком устал для атаки")
 
-            self._cleanup_defense()
-            turn += 1
+        # Сценарий 3: Первый защищается, второй атакует
+        elif action1_type == ActionType.DEFEND and action2_type == ActionType.ATTACK:
+            if w2.endurance >= 10:
+                w2.endurance -= 10
+                health_damage, armor_damage = w1.calculate_defense()
 
-        alive = self._get_alive_warriors()
-        dead = [w for w in self.warriors if not w.is_alive()]
-
-        if alive and dead:
-            winner = alive[0]
-            loser = dead[0]
-            print(f"\n🥊 {loser.name.upper()} проиграл (его здоровье упало ниже допустимой нормы)! ⬇")
-
-            # Пользовательский выбор убийства
-            while True:
-                choice = input("Хотите казнить проигравшего? (1 — Да / 2 — Нет): ").strip()
-                if choice == "1":
-                    print(f"🔫 {loser.name.upper()} был казнён по воле толпы!")
-                    break
-                elif choice == "2":
-                    print(f"🌟 {loser.name.upper()} помилован зрителями и продолжает жить!")
-                    break
+                if health_damage == 0 and armor_damage == 0:
+                    print(f"🎯 {w1.name} полностью уклоняется от атаки {w2.name}!")
                 else:
-                    print("Введите 1 или 2.")
+                    w1.take_damage(health_damage, armor_damage)
+                    print(
+                        f"🛡 {w2.name} атакует, {w1.name} защищается: {health_damage} по здоровью, {armor_damage} по броне")
+            else:
+                print(f"💤 {w2.name} слишком устал для атаки")
 
-            print(f"🥈 ПОБЕДИЛ: {winner.name.upper()}!")
+        # Сценарий 4: Оба защищаются
         else:
-            print("🌵 Бой завершён вничью!")
+            print("🛡 Оба воина защищаются - потерь нет")
+
+    def _print_status(self) -> None:
+        """Выводит текущее состояние обоих воинов."""
+        print("\n" + "=" * 50)
+        for warrior in self.warriors:
+            status = "✅ Жив" if warrior.is_alive() else "🤕  Ранен"
+            print(f"{warrior} {status}")
+        print("=" * 50)
+
+    def _declare_winner(self) -> Optional[Warrior]:
+        """
+        Определяет и объявляет победителя боя.
+
+        Returns:
+            Победивший воин или None в случае ничьи
+        """
+        alive_warriors = [w for w in self.warriors if w.is_alive()]
+
+        if len(alive_warriors) == 1:
+            winner = alive_warriors[0]
+            print(f"\n🎉 Победитель: {winner.name}!")
+            loser = self.warriors[1] if winner == self.warriors[0] else self.warriors[0]
+            self._ask_execution(loser)
+            return winner
+        else:
+            print("\n🤝 Оба воина пали в бою!")
+            return None
+
+    def _ask_execution(self, loser: Warrior) -> None:
+        """
+        Предлагает игроку решить судьбу проигравшего воина.
+
+        Args:
+            loser: Проигравший воин
+        """
+        choice = input(f"\n⚰ Убить {loser.name}? (да/нет): ").strip().lower()
+        if choice == "да":
+            print(f"💀 {loser.name} казнен!")
+            loser.health = 0
+        else:
+            print(f"❤ {loser.name} оставлен в живых.")
+
+
+class WarriorFactory:
+    """
+    Фабрика для создания воинов со случайными параметрами.
+
+    Предоставляет функциональность для автоматического создания воинов
+    со случайными классами и именами из греко-римской мифологии.
+    """
+
+    # Списки имен из греческой мифологии (мужские и женские)
+    GREEK_NAMES = [
+        "Ахиллес", "Гектор", "Одиссей", "Геракл", "Персей",
+        "Тесей", "Ясон", "Агамемнон", "Аякс", "Патрокл",
+        "Афродита", "Афина", "Артемида", "Гера", "Диметра",
+        "Персефона", "Амазонка", "Андромеда", "Кассандра", "Елена"
+    ]
+
+    # Списки имен из римской мифологии (мужские и женские)
+    ROMAN_NAMES = [
+        "Ромул", "Рем", "Цезарь", "Сципион", "Ганнибал",
+        "Спартак", "Цицерон", "Август", "Нерон", "Троян",
+        "Венера", "Диана", "Минерва", "Юнона", "Веста",
+        "Беллона", "Флора", "Фортуна", "Аврора", "Психея"
+    ]
+
+    # Доступные классы воинов
+    WARRIOR_CLASSES = [BasicWarrior, Archer, Tank]
+
+    @classmethod
+    def create_random_warrior(cls) -> Warrior:
+        """
+        Создает воина со случайным классом и именем.
+
+        Returns:
+            Новый экземпляр случайного класса воина со случайным именем
+        """
+        # Выбираем случайный класс воина
+        warrior_class = random.choice(cls.WARRIOR_CLASSES)
+
+        # Выбираем случайный пул имен (греческий или римский)
+        name_pool = random.choice([cls.GREEK_NAMES, cls.ROMAN_NAMES])
+        name = random.choice(name_pool)
+
+        return warrior_class(name)
+
+
+class Game:
+    """
+    Основной класс игры, управляющий игровым процессом.
+
+    Обеспечивает взаимодействие с пользователем и управление боями.
+    """
+
+    def __init__(self):
+        """Инициализирует игру с фабрикой воинов."""
+        self.factory = WarriorFactory()
+
+    def run(self) -> None:
+        """
+        Запускает главный игровой цикл.
+
+        Предоставляет пользователю меню для начала новых боев или выхода из игры.
+        """
+        print("🎮 Добро пожаловать в игру 'Воинская доблесть'!")
+
+        while True:
+            print("\n" + "=" * 40)
+            print("1. Начать новый бой")
+            print("2. Выйти")
+
+            choice = input("Ваш выбор: ").strip()
+
+            if choice == "1":
+                self._start_battle()
+            elif choice == "2":
+                print("До свидания!")
+                break
+            else:
+                print("Неверный выбор!")
+
+    def _start_battle(self) -> None:
+        """
+        Запускает один бой между двумя случайно созданными воинами.
+
+        Создает воинов, проводит бой и отображает результаты.
+        """
+        print("\n⚡ Создание воинов...")
+
+        # Создаем двух воинов
+        warrior1 = self.factory.create_random_warrior()
+        warrior2 = self.factory.create_random_warrior()
+
+        # Гарантируем уникальность имен
+        while warrior2.name == warrior1.name:
+            warrior2 = self.factory.create_random_warrior()
+
+        # Отображаем информацию о бойцах
+        warrior1_type = type(warrior1).__name__
+        warrior2_type = type(warrior2).__name__
+        print(f"⚔ На арене: {warrior1.name} ({warrior1_type}) vs {warrior2.name} ({warrior2_type})")
+
+        # Восстанавливаем параметры воинов
+        warrior1.restore()
+        warrior2.restore()
+
+        # Запускаем бой
+        battle = Battle(warrior1, warrior2)
+        winner = battle.run()
+
+        # Отображаем статистику боя
+        print(f"\n📊 Бой длился {battle.turn_count} ходов")
+        if winner:
+            print(f"🏆 Победитель: {winner.name}!")
+
+
+def main() -> None:
+    """
+    Главная функция программы.
+
+    Запускает игровой процесс.
+    """
+    game = Game()
+    game.run()
+
 
 if __name__ == "__main__":
-    warrior1 = Warrior("Ахиллес", health=120, armor=80)
-    warrior2 = Warrior("Гектор", endurance=120)
+    main()
 
-    battle = Battle([warrior1, warrior2])
-    battle.run()
 
 
 
